@@ -12,9 +12,10 @@ version = 0.1.0
 orientation = portrait
 fullscreen = 1
 
-# Pygame on Android is fragile across Python/p4a versions. Keep this pinned
-# unless the Android build is re-tested end to end.
-requirements = python3==3.10.12,hostpython3==3.10.12,kivy==2.3.0,pyjnius==1.5.0,pygame
+# Keep Android requirements narrow. This project is a pygame app and does not
+# use Kivy/pyjnius; adding them makes the APK build compile unrelated native
+# dependencies and currently breaks on GitHub Actions.
+requirements = python3==3.10.12,hostpython3==3.10.12,pygame
 
 presplash.filename = assets/start_background.png
 icon.filename = assets/icon.png
