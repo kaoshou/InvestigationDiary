@@ -677,9 +677,33 @@ SCREEN_WIDTH = 512
 SCREEN_HEIGHT = UI_HEIGHT
 WINDOW_FRAME_WIDTH_PADDING = 24
 WINDOW_FRAME_HEIGHT_PADDING = 72
+TOUCH_SCROLL_THRESHOLD = 22
+TOUCH_HIT_PADDING = 6
+
+
+def is_touch_platform() -> bool:
+    platform_name = sys.platform.lower()
+    return (
+        platform_name in {"android", "ios", "emscripten"}
+        or "ANDROID_ARGUMENT" in os.environ
+        or "ANDROID_STORAGE" in os.environ
+        or "PYGBAG" in os.environ
+    )
+
+
+TOUCH_PLATFORM = is_touch_platform()
 
 
 def get_initial_window_size() -> tuple[int, int]:
+    if TOUCH_PLATFORM:
+        desktop_sizes = pygame.display.get_desktop_sizes()
+        if desktop_sizes:
+            return desktop_sizes[0]
+        info = pygame.display.Info()
+        if info.current_w > 0 and info.current_h > 0:
+            return (info.current_w, info.current_h)
+        return (SCREEN_WIDTH, SCREEN_HEIGHT)
+
     desktop_sizes = pygame.display.get_desktop_sizes()
     if not desktop_sizes:
         return (SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -732,8 +756,9 @@ def clamp_window_size(width: int, height: int) -> tuple[int, int]:
     return (width, height)
 
 
+display_flags = pygame.FULLSCREEN if TOUCH_PLATFORM else pygame.RESIZABLE
 screen = pygame.display.set_mode(
-    (INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT), pygame.RESIZABLE
+    (INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT), display_flags
 )
 pygame.display.set_caption("菜鳥調查隊日誌")
 icon = pygame.image.load(res_path("assets", "icon.png")).convert_alpha()
@@ -823,6 +848,34 @@ def window_to_game_pos(pos) -> Optional[tuple[int, int]]:
     game_x = max(0, min(SCREEN_WIDTH - 1, game_x))
     game_y = max(0, min(SCREEN_HEIGHT - 1, game_y))
     return (game_x, game_y)
+
+
+def finger_to_window_pos(event) -> tuple[int, int]:
+    window_width, window_height = screen.get_size()
+    x = int(event.x * window_width)
+    y = int(event.y * window_height)
+    return (x, y)
+
+
+def scroll_log_at(game_pos: tuple[int, int], direction: int) -> bool:
+    log_rect = get_areas_for_mode(player)["log"]
+    if not log_rect.collidepoint(game_pos):
+        return False
+
+    log_width = log_rect.width - 16
+    if direction > 0:
+        text_log.scroll_up(FONT, log_width)
+    elif direction < 0:
+        text_log.scroll_down()
+    return True
+
+
+def control_contains(
+    rect: pygame.Rect, pos: tuple[int, int], padding: int = TOUCH_HIT_PADDING
+) -> bool:
+    if TOUCH_PLATFORM:
+        return rect.inflate(padding * 2, padding * 2).collidepoint(pos)
+    return rect.collidepoint(pos)
 
 
 def present_game_surface() -> None:
@@ -1049,38 +1102,38 @@ def handle_settings_click(pos, include_navigation: bool):
         show_settings_popup = False
         return True
 
-    if controls["bgm_down"].collidepoint(pos):
+    if control_contains(controls["bgm_down"], pos):
         sound_manager.change_bgm_volume(-VOLUME_STEP)
         return True
-    if controls["bgm_up"].collidepoint(pos):
+    if control_contains(controls["bgm_up"], pos):
         sound_manager.change_bgm_volume(VOLUME_STEP)
         return True
-    if controls["sfx_down"].collidepoint(pos):
+    if control_contains(controls["sfx_down"], pos):
         sound_manager.change_sfx_volume(-VOLUME_STEP)
         return True
-    if controls["sfx_up"].collidepoint(pos):
+    if control_contains(controls["sfx_up"], pos):
         sound_manager.change_sfx_volume(VOLUME_STEP)
         return True
-    if controls["typewriter_toggle"].collidepoint(pos):
+    if control_contains(controls["typewriter_toggle"], pos):
         text_log.set_typewriter_enabled(not text_log.is_typewriter_enabled())
         return True
-    if controls["devlog_toggle"].collidepoint(pos):
+    if control_contains(controls["devlog_toggle"], pos):
         text_log.set_dev_log_enabled(not text_log.is_dev_log_enabled())
         return True
 
     if include_navigation:
-        if controls["to_menu"].collidepoint(pos):
+        if control_contains(controls["to_menu"], pos):
             persist_game_state()
             show_settings_popup = False
             game_state = "start_menu"
             sound_manager.play_bgm(BGM_START_MENU)
             return True
-        if controls["quit"].collidepoint(pos):
+        if control_contains(controls["quit"], pos):
             persist_game_state()
             pygame.quit()
             sys.exit()
 
-    if controls["close"].collidepoint(pos):
+    if control_contains(controls["close"], pos):
         show_settings_popup = False
         return True
 
@@ -1540,6 +1593,8 @@ enemy_attack_active = False
 ending_exit_timer = 0
 ending_fade_alpha = 0.0
 intro_fade_alpha = 0.0
+touch_scroll_start_pos: Optional[tuple[int, int]] = None
+touch_scroll_last_y: Optional[int] = None
 
 # 主要遊戲迴圈
 running = True
@@ -1551,22 +1606,44 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.VIDEORESIZE:
+            if TOUCH_PLATFORM:
+                continue
             clamped_width, clamped_height = clamp_window_size(event.w, event.h)
             if (clamped_width, clamped_height) != screen.get_size():
                 screen = pygame.display.set_mode(
                     (clamped_width, clamped_height), pygame.RESIZABLE
                 )
+        elif event.type == pygame.KEYDOWN and event.key in (
+            pygame.K_ESCAPE,
+            getattr(pygame, "K_AC_BACK", None),
+        ):
+            if show_settings_popup:
+                show_settings_popup = False
+            elif game_state == "main_screen":
+                persist_game_state()
+                game_state = "start_menu"
+                sound_manager.play_bgm(BGM_START_MENU)
+            else:
+                running = False
 
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            game_pos = window_to_game_pos(event.pos)
+        elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button != 1 or getattr(event, "touch", False):
+                    continue
+                game_pos = window_to_game_pos(event.pos)
+            else:
+                game_pos = window_to_game_pos(finger_to_window_pos(event))
             if game_pos is None:
                 continue
+            if event.type == pygame.FINGERDOWN:
+                touch_scroll_start_pos = game_pos
+                touch_scroll_last_y = game_pos[1]
 
             if show_settings_popup:
                 if handle_settings_click(game_pos, game_state == "main_screen"):
                     continue
 
-            if settings_button.collidepoint(game_pos):
+            if control_contains(settings_button, game_pos):
                 show_settings_popup = True
                 continue
 
@@ -1627,7 +1704,7 @@ while running:
                     sub_state == "wait"
                     and current_event is None
                     and option_rects
-                    and option_rects[0].collidepoint(game_pos)
+                    and control_contains(option_rects[0], game_pos, padding=2)
                     and not text_log.is_typewriter_animating()
                 ):
                     if player.pop("skip_walk_once", None):
@@ -1649,7 +1726,8 @@ while running:
                         sub_state, current_event, player, areas
                     )
                     if text_log.is_typewriter_animating() and any(
-                        rect.collidepoint(game_pos) for rect in option_rects
+                        control_contains(rect, game_pos, padding=2)
+                        for rect in option_rects
                     ):
                         handled_click = True
                     elif pending_result_requires_attack or enemy_attack_active:
@@ -1658,7 +1736,7 @@ while running:
                         for i, rect in enumerate(option_rects):
                             if i >= len(current_event["options"]):
                                 continue
-                            if rect.collidepoint(game_pos):
+                            if control_contains(rect, game_pos, padding=2):
                                 chosen = current_event["options"][i]
                                 text_log.add(
                                     f"你選擇了：{chosen['text']}", category="choice"
@@ -1741,17 +1819,24 @@ while running:
                                 )
                                 present_game_surface()
                             break
+        elif event.type == pygame.FINGERMOTION:
+            game_pos = window_to_game_pos(finger_to_window_pos(event))
+            if game_pos is None or touch_scroll_last_y is None:
+                continue
+            start_pos = touch_scroll_start_pos or game_pos
+            dy = game_pos[1] - touch_scroll_last_y
+            if abs(dy) >= TOUCH_SCROLL_THRESHOLD:
+                direction = 1 if dy < 0 else -1
+                if scroll_log_at(start_pos, direction):
+                    touch_scroll_last_y = game_pos[1]
+        elif event.type == pygame.FINGERUP:
+            touch_scroll_start_pos = None
+            touch_scroll_last_y = None
         elif event.type == pygame.MOUSEWHEEL:
             game_mouse_pos = window_to_game_pos(pygame.mouse.get_pos())
             if game_mouse_pos is None:
                 continue
-            log_rect = get_areas_for_mode(player)["log"]
-            if log_rect.collidepoint(game_mouse_pos):
-                log_width = log_rect.width - 16
-                if event.y > 0:
-                    text_log.scroll_up(FONT, log_width)
-                else:
-                    text_log.scroll_down()
+            scroll_log_at(game_mouse_pos, event.y)
 
     dt_ms = clock.tick(60)
     dt = dt_ms / 1000.0

@@ -21,6 +21,8 @@ def is_cinematic_mode(player: dict) -> bool:
 STATUS_WIDTH = 200  # 較窄的狀態面板
 GAP = 24  # 狀態與選項之間的水平間距
 STATUS_X = 32
+OPTION_HEIGHT = 44
+OPTION_STEP = 48
 OPTIONS_X = STATUS_X + STATUS_WIDTH + GAP
 OPTIONS_WIDTH = 448 - (OPTIONS_X - STATUS_X)
 
@@ -29,7 +31,8 @@ UI_AREAS = {
     "log": pygame.Rect(32, 331, 448, 256),
     "status": pygame.Rect(STATUS_X, 603, STATUS_WIDTH, 132),
     "options": [
-        pygame.Rect(OPTIONS_X, 603 + i * 45, OPTIONS_WIDTH, 40) for i in range(3)
+        pygame.Rect(OPTIONS_X, 603 + i * OPTION_STEP, OPTIONS_WIDTH, OPTION_HEIGHT)
+        for i in range(3)
     ],
     "inventory_preview": pygame.Rect(32, 751, 448, 80),
 }
@@ -44,7 +47,8 @@ UI_AREAS = {
     "log": pygame.Rect(32, 331, 448, 256),
     "status": pygame.Rect(STATUS_X, 603, STATUS_WIDTH, 132),
     "options": [
-        pygame.Rect(OPTIONS_X, 603 + i * 45, OPTIONS_WIDTH, 40) for i in range(3)
+        pygame.Rect(OPTIONS_X, 603 + i * OPTION_STEP, OPTIONS_WIDTH, OPTION_HEIGHT)
+        for i in range(3)
     ],
     "inventory_preview": pygame.Rect(32, 751, 448, 80),
 }
