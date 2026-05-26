@@ -28,7 +28,7 @@ ENDING_EXIT_DELAY_MS = 2000
 ENDING_FADE_SPEED = 160.0
 ENDING_LAYOUT_TRANSITION_SEC = 0.6
 INTRO_FADE_SPEED = 260.0
-TARGET_FPS = 30 if (
+TARGET_FPS = 20 if (
     sys.platform.lower() in {"android", "ios", "emscripten"}
     or "ANDROID_ARGUMENT" in os.environ
     or "ANDROID_STORAGE" in os.environ
@@ -778,7 +778,7 @@ last_persist_ticks = 0
 sound_manager.play_bgm(BGM_START_MENU)
 
 # 載入背景與標誌圖片
-start_bg = pygame.image.load(res_path("assets", "start_background.png"))
+start_bg = pygame.image.load(res_path("assets", "start_background.png")).convert()
 logo_image = pygame.image.load(res_path("assets", "logo1.png")).convert_alpha()
 logo_image = pygame.transform.scale(logo_image, (300, 300))
 
@@ -799,6 +799,8 @@ enemy_attack_active = False
 # 字型
 FONT = pygame.font.Font(res_path("assets", "Cubic_11.ttf"), 20)
 SMALL_FONT = pygame.font.Font(res_path("assets", "Cubic_11.ttf"), 16)
+TEXT_SURFACE_CACHE: dict[tuple[int, str, tuple[int, int, int]], pygame.Surface] = {}
+TEXT_SURFACE_CACHE_LIMIT = 256
 
 # 開始選單按鈕
 button_width = 200
@@ -884,6 +886,13 @@ def control_contains(
     if TOUCH_PLATFORM:
         return rect.inflate(padding * 2, padding * 2).collidepoint(pos)
     return rect.collidepoint(pos)
+
+
+def finish_typewriter_on_tap() -> bool:
+    if text_log.is_typewriter_animating():
+        text_log.finish_typewriter()
+        return True
+    return False
 
 
 def present_game_surface() -> None:
@@ -1017,8 +1026,22 @@ def draw_button(
     font=FONT,
 ):
     pygame.draw.rect(surface, color, rect, border_radius=6)
-    text_surface = font.render(label, True, (255, 255, 255))
+    text_surface = render_cached_text(font, label, (255, 255, 255))
     surface.blit(text_surface, text_surface.get_rect(center=rect.center))
+
+
+def render_cached_text(
+    font: pygame.font.Font, text: str, color: tuple[int, int, int]
+) -> pygame.Surface:
+    key = (id(font), str(text), tuple(color))
+    cached = TEXT_SURFACE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if len(TEXT_SURFACE_CACHE) >= TEXT_SURFACE_CACHE_LIMIT:
+        TEXT_SURFACE_CACHE.clear()
+    rendered = font.render(text, True, color)
+    TEXT_SURFACE_CACHE[key] = rendered
+    return rendered
 
 
 def draw_settings_popup(surface: pygame.Surface, include_navigation: bool):
@@ -1552,7 +1575,7 @@ def start_intro_cinematic(event: dict) -> None:
     player["intro_cinematic_ready"] = False
     player["intro_log_history"] = text_log.snapshot_history()
     player["intro_pending_start"] = True
-    text_log.set_typewriter_override(True)
+    text_log.set_typewriter_override(False if TOUCH_PLATFORM else True)
     text_log.clear_history()
 
 
@@ -1588,6 +1611,8 @@ def try_apply_pending_result(force: bool = False):
 
 # 初始化玩家狀態
 text_log.reset()
+if TOUCH_PLATFORM:
+    text_log.set_typewriter_override(False)
 player = init_player_state()
 current_background_name = DEFAULT_BACKGROUND
 
@@ -1610,6 +1635,8 @@ ending_fade_alpha = 0.0
 intro_fade_alpha = 0.0
 touch_scroll_start_pos: Optional[tuple[int, int]] = None
 touch_scroll_last_y: Optional[int] = None
+last_finger_down_pos: Optional[tuple[int, int]] = None
+last_finger_down_ticks = 0
 
 # 主要遊戲迴圈
 running = True
@@ -1643,9 +1670,19 @@ while running:
 
         elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button != 1 or getattr(event, "touch", False):
+                if event.button != 1:
                     continue
                 game_pos = window_to_game_pos(event.pos)
+                if game_pos is None:
+                    continue
+                if (
+                    getattr(event, "touch", False)
+                    and last_finger_down_pos is not None
+                    and pygame.time.get_ticks() - last_finger_down_ticks < 350
+                    and abs(game_pos[0] - last_finger_down_pos[0]) <= 4
+                    and abs(game_pos[1] - last_finger_down_pos[1]) <= 4
+                ):
+                    continue
             else:
                 game_pos = window_to_game_pos(finger_to_window_pos(event))
             if game_pos is None:
@@ -1653,6 +1690,8 @@ while running:
             if event.type == pygame.FINGERDOWN:
                 touch_scroll_start_pos = game_pos
                 touch_scroll_last_y = game_pos[1]
+                last_finger_down_pos = game_pos
+                last_finger_down_ticks = pygame.time.get_ticks()
 
             if show_settings_popup:
                 if handle_settings_click(game_pos, game_state == "main_screen"):
@@ -1683,7 +1722,7 @@ while running:
                     if player.get("intro_pending_start"):
                         handled_click = True
                         continue
-                    if text_log.is_typewriter_animating():
+                    if finish_typewriter_on_tap():
                         handled_click = True
                     else:
                         if advance_intro_segment():
@@ -1700,7 +1739,7 @@ while running:
                         continue
 
                 if player.get("ending_active"):
-                    if text_log.is_typewriter_animating():
+                    if finish_typewriter_on_tap():
                         handled_click = True
                     else:
                         if advance_ending_segment():
@@ -1744,6 +1783,7 @@ while running:
                         control_contains(rect, game_pos, padding=2)
                         for rect in option_rects
                     ):
+                        text_log.finish_typewriter()
                         handled_click = True
                     elif pending_result_requires_attack or enemy_attack_active:
                         handled_click = True
@@ -1857,8 +1897,10 @@ while running:
     dt = dt_ms / 1000.0
     text_log.update_typewriter(dt)
     sound_manager.update(dt)
-    player_animator.update(dt)
-    enemy_animator.update(dt)
+    if not (TOUCH_PLATFORM and player_animator.state == "idle"):
+        player_animator.update(dt)
+    if not (TOUCH_PLATFORM and not enemy_animator.is_attacking()):
+        enemy_animator.update(dt)
     if enemy_attack_active and enemy_animator.attack_finished:
         enemy_attack_active = False
     try_apply_pending_result()

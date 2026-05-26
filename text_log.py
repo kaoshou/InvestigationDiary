@@ -508,6 +508,13 @@ def is_typewriter_animating() -> bool:
     return bool(_active_entry and _effective_typewriter_enabled())
 
 
+def finish_typewriter() -> None:
+    """Immediately show queued typewriter text."""
+
+    if _active_entry or _pending_entries:
+        _flush_pending_entries()
+
+
 def set_typewriter_override(enabled: bool | None) -> None:
     global _typewriter_override
     _typewriter_override = enabled

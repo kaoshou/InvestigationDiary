@@ -109,6 +109,8 @@ ITEM_ICON_FILES = {
 
 _ITEM_ICON_CACHE: dict[str, Optional[pygame.Surface]] = {}
 _SCALED_ICON_CACHE: dict[tuple[str, int], pygame.Surface] = {}
+_TEXT_SURFACE_CACHE: dict[tuple[int, str, tuple[int, int, int]], pygame.Surface] = {}
+_TEXT_SURFACE_CACHE_LIMIT = 512
 
 
 
@@ -596,7 +598,13 @@ def draw_text(
     is True the text is centred; otherwise it is drawn with a small
     margin and ``line_offset`` controls vertical offset for multiple lines.
     """
-    rendered = font.render(text, True, color)
+    key = (id(font), str(text), tuple(color))
+    rendered = _TEXT_SURFACE_CACHE.get(key)
+    if rendered is None:
+        if len(_TEXT_SURFACE_CACHE) >= _TEXT_SURFACE_CACHE_LIMIT:
+            _TEXT_SURFACE_CACHE.clear()
+        rendered = font.render(text, True, color)
+        _TEXT_SURFACE_CACHE[key] = rendered
     if center:
         text_rect = rendered.get_rect(center=rect.center)
     else:
