@@ -1548,7 +1548,7 @@ def advance_intro_segment() -> bool:
     if index >= len(segments):
         return False
     if current_event and current_event.get("id") == "任務簡報" and index == 1:
-        current_background_name = "1_任務簡報2.png"
+        current_background_name = "bg002.png"
     if "intro_log_history" not in player:
         player["intro_log_history"] = text_log.snapshot_history()
     player["intro_log_history"].append(
@@ -1699,6 +1699,8 @@ while running:
 
             if control_contains(settings_button, game_pos):
                 show_settings_popup = True
+                draw_settings_popup(game_surface, game_state == "main_screen")
+                present_game_surface()
                 continue
 
             if (
@@ -1801,7 +1803,7 @@ while running:
                                     current_event.get("id") == "任務簡報"
                                     and chosen.get("text") == "「任務簡報請說。」"
                                 ):
-                                    current_background_name = "1_任務簡報3.png"
+                                    current_background_name = "bg003.png"
                                 result = chosen.get("result")
                                 pending_result_is_battle_action = bool(
                                     result and result.get("battle_action")
