@@ -1,5 +1,5 @@
 [app]
-title = Investigation Diary
+title = 菜鳥調查隊日誌
 package.name = investigationdiary
 package.domain = org.gameproject
 

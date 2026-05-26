@@ -55,7 +55,7 @@ UI_AREAS = {
 UI_HEIGHT = UI_AREAS["inventory_preview"].bottom + 16
 
 BACKGROUND_DIR = ("assets", "background")
-DEFAULT_BACKGROUND = "starting_area.png"
+DEFAULT_BACKGROUND = "1_任務簡報1.png"
 
 # Cache scaled backgrounds so we only load and resize each file once.
 _BACKGROUND_CACHE: dict[str, pygame.Surface] = {}
@@ -85,6 +85,10 @@ def _load_background(name: str) -> pygame.Surface:
         fallback.fill((20, 20, 20))
         _BACKGROUND_CACHE[name] = fallback
         return fallback
+    if loaded.get_alpha() is not None:
+        loaded = loaded.convert_alpha()
+    else:
+        loaded = loaded.convert()
     scaled = pygame.transform.scale(loaded, UI_AREAS["image"].size)
     _BACKGROUND_CACHE[name] = scaled
     return scaled

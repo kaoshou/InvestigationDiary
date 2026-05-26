@@ -28,6 +28,13 @@ ENDING_EXIT_DELAY_MS = 2000
 ENDING_FADE_SPEED = 160.0
 ENDING_LAYOUT_TRANSITION_SEC = 0.6
 INTRO_FADE_SPEED = 260.0
+TARGET_FPS = 30 if (
+    sys.platform.lower() in {"android", "ios", "emscripten"}
+    or "ANDROID_ARGUMENT" in os.environ
+    or "ANDROID_STORAGE" in os.environ
+    or "PYGBAG" in os.environ
+) else 60
+AUTO_SAVE_INTERVAL_MS = 5000
 
 
 def _write_crash_log(exc_type, exc_value, exc_traceback) -> None:
@@ -766,6 +773,7 @@ pygame.display.set_icon(icon)
 game_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)).convert()
 SCREEN_RECT = game_surface.get_rect()
 clock = pygame.time.Clock()
+last_persist_ticks = 0
 
 sound_manager.play_bgm(BGM_START_MENU)
 
@@ -884,7 +892,8 @@ def present_game_surface() -> None:
     if viewport.size == game_surface.get_size():
         screen.blit(game_surface, viewport.topleft)
     else:
-        scaled_surface = pygame.transform.smoothscale(game_surface, viewport.size)
+        scale_func = pygame.transform.scale if TOUCH_PLATFORM else pygame.transform.smoothscale
+        scaled_surface = scale_func(game_surface, viewport.size)
         screen.blit(scaled_surface, viewport.topleft)
     pygame.display.flip()
 
@@ -1123,13 +1132,13 @@ def handle_settings_click(pos, include_navigation: bool):
 
     if include_navigation:
         if control_contains(controls["to_menu"], pos):
-            persist_game_state()
+            persist_game_state(force=True)
             show_settings_popup = False
             game_state = "start_menu"
             sound_manager.play_bgm(BGM_START_MENU)
             return True
         if control_contains(controls["quit"], pos):
-            persist_game_state()
+            persist_game_state(force=True)
             pygame.quit()
             sys.exit()
 
@@ -1285,8 +1294,14 @@ def apply_event_on_enter_effects(player: dict, event: Optional[dict]) -> None:
     event["_on_enter_applied"] = True
 
 
-def persist_game_state():
+def persist_game_state(force: bool = False):
+    global has_save_file, last_persist_ticks
+
     if game_state != "main_screen":
+        return
+
+    now = pygame.time.get_ticks()
+    if not force and now - last_persist_ticks < AUTO_SAVE_INTERVAL_MS:
         return
 
     save_manager.save_game(
@@ -1302,7 +1317,7 @@ def persist_game_state():
             "text_log": text_log.export_state(),
         }
     )
-    global has_save_file
+    last_persist_ticks = now
     has_save_file = True
 
 
@@ -1620,7 +1635,7 @@ while running:
             if show_settings_popup:
                 show_settings_popup = False
             elif game_state == "main_screen":
-                persist_game_state()
+                persist_game_state(force=True)
                 game_state = "start_menu"
                 sound_manager.play_bgm(BGM_START_MENU)
             else:
@@ -1838,7 +1853,7 @@ while running:
                 continue
             scroll_log_at(game_mouse_pos, event.y)
 
-    dt_ms = clock.tick(60)
+    dt_ms = clock.tick(TARGET_FPS)
     dt = dt_ms / 1000.0
     text_log.update_typewriter(dt)
     sound_manager.update(dt)
