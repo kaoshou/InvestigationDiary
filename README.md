@@ -5,7 +5,7 @@
   # 菜鳥調查隊日記 (Investigation Diary)
 
   **崑山科技大學 電腦與遊戲發展科學學士學位學程 學生畢業專題**
-  > 📌 **專案來源與致謝**：本專案為崑山科技大學電腦與遊戲發展科學學士學位學程第111級(2026年畢業)學生畢業專題製作成果，Fork / 衍生自原學生團隊專案 [hPPPf7/GameProject](https://github.com/hPPPf7/GameProject)，並由指導老師鄭郁翰進行後續功能修復、Android 16 (API 36) 升級與 Google Play 發布維護。
+  > 📌 **專案來源與致謝**：本專案為崑山科技大學電腦與遊戲發展科學學士學位學程第111級(2026年畢業)學生畢業專題製作成果，Fork / 衍生自原學生團隊專案 [hPPPf7/GameProject](https://github.com/hPPPf7/GameProject)，並由指導老師鄭郁翰進行後續微調、Android 16 (API 36) 升級與 Google Play 發布維護。
 
   <!-- GitHub Badge 區 -->
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -13,8 +13,9 @@
   [![Pygame-CE](https://img.shields.io/badge/Pygame--CE-2.5.6-orange.svg)](https://pyga.me/)
   [![Android](https://img.shields.io/badge/Android-API_36-green.svg)](https://developer.android.com/)
   [![Google Play](https://img.shields.io/badge/Google_Play-下載頁面-414141?logo=google-play&logoColor=white)](https://play.google.com/store/apps/details?id=tw.yuhan.InvestigationDiary)
-
   *專案簡介摘要：一款跨平台 (PC / Android) 的 2D 互動式劇情解謎 RPG。玩家將扮演初出茅廬的調查員，透過選擇、戰鬥與探索發掘異變世界的真相。*
+
+  > 💡 **核心架構亮點**：本專案設計了一套具有高度擴充性的劇情系統。整個故事內容皆採用規範化的 JSON 格式管理，因此不需修改程式碼，即可動態調整劇情內容，支援：**多結局、分支劇情、戰鬥對決、道具蒐集與劇情事件擴充**... 透過這樣的設計，未來只要編寫或修改 JSON，就能快速建立新的故事章節、任務流程與事件，大幅提升遊戲內容的擴充性與維護效率。
 </div>
 
 ---
