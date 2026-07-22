@@ -5,7 +5,7 @@
   # 菜鳥調查隊日記 (Investigation Diary)
 
   **崑山科技大學 電腦與遊戲發展科學學士學位學程 學生畢業專題**
-  > 📌 **專案來源與致謝**：本專案為崑山科技大學電腦與遊戲發展科學學士學位學程第111級(2026年畢業)學生畢業專題製作成果，Fork / 衍生自原學生團隊專案 [hPPPf7/GameProject](https://github.com/hPPPf7/GameProject)，並由指導老師鄭郁翰進行後續微調、Android 16 (API 36) 升級與 Google Play 發布維護。
+  > 📌 **專案來源**：本專案為崑山科技大學電腦與遊戲發展科學學士學位學程第111級(2026年畢業)學生畢業專題製作成果，Fork / 衍生自原學生團隊專案 [hPPPf7/GameProject](https://github.com/hPPPf7/GameProject)，並由指導老師鄭郁翰進行後續微調、Android 16 (API 36) 升級與 Google Play 發布維護。
 
   <!-- GitHub Badge 區 -->
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
