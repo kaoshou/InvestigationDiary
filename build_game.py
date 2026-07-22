@@ -78,9 +78,9 @@ def main() -> None:
         exe_path = PROJECT_ROOT / "dist" / APP_NAME
 
     if exe_path.exists():
-        print(f"\n✅ Build complete. Executable located at:\n  {exe_path}")
+        print(f"\n[+] Build complete. Executable located at:\n  {exe_path}")
     else:
-        print("\n⚠ Build finished, but executable not found in dist/. Please check dist/ contents.")
+        print("\n[!] Build finished, but executable not found in dist/. Please check dist/ contents.")
 
 
 if __name__ == "__main__":

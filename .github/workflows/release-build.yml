@@ -1,0 +1,110 @@
+name: Build and Release Desktop Executables
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-desktop:
+    name: Build Desktop Binary for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: InvestigationDiary-Windows.exe
+            target_asset: InvestigationDiary-Windows.exe
+          - os: macos-latest
+            artifact_name: InvestigationDiary-macOS.zip
+            target_asset: InvestigationDiary-macOS.zip
+          - os: ubuntu-latest
+            artifact_name: InvestigationDiary-Linux.tar.gz
+            target_asset: InvestigationDiary-Linux.tar.gz
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller pygame-ce
+
+      - name: Build Executable via build_game.py
+        run: python build_game.py
+
+      - name: Package Artifact File
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            mv InvestigationDiary.exe InvestigationDiary-Windows.exe
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            zip -r InvestigationDiary-macOS.zip InvestigationDiary
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            tar -czvf InvestigationDiary-Linux.tar.gz InvestigationDiary
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target_asset }}
+          path: |
+            dist/InvestigationDiary-Windows.exe
+            dist/InvestigationDiary-macOS.zip
+            dist/InvestigationDiary-Linux.tar.gz
+          if-no-files-found: ignore
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download All Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: 菜鳥調查隊日記 (Investigation Diary) ${{ github.ref_name }}
+          body: |
+            ## 菜鳥調查隊日記 (Investigation Diary) 跨平台發布說明
+
+            ### 💻 桌面端遊戲下載 (Desktop Executables)
+            本 Release 包含以下跨平台桌面端獨立可執行檔，請依您的作業系統點擊頁面下方 **Assets** 區塊下載：
+
+            - **🪟 Windows**: `InvestigationDiary-Windows.exe`（直接雙擊即可開始遊玩）
+            - **🍎 macOS**: `InvestigationDiary-macOS.zip`（解壓縮後即可執行）
+            - **🐧 Linux**: `InvestigationDiary-Linux.tar.gz`（解壓縮後即可執行）
+
+            ---
+
+            ### 📱 Android 行動端安裝體驗 (Android Mobile)
+            > 📱 **Android 使用者無須下載安裝包檔案！**  
+            > 本專案已原生符合 Android 16 (API 36) 規範並成功發布至 Google Play 官方商店，請直接前往 Google Play 安裝體驗：  
+            > 🔗 **[📲 點此前往 Google Play 商店安裝《菜鳥調查隊日記》](https://play.google.com/store/apps/details?id=tw.yuhan.InvestigationDiary)**
+
+            ---
+
+            #### 🎓 專題團隊與版權資訊
+            - **學校科系**：崑山科技大學 電腦與遊戲發展科學學士學位學程 第111級畢業專題成果
+            - **指導老師**：鄭郁翰 老師
+            - **專題組員**：王姵璇、劉秉融、羅睿潁、蔡宇倫、李奕承
+          files: |
+            release-assets/*/*
