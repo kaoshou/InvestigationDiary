@@ -1,4 +1,4 @@
-"""Utilities for locating resource files and user-writable locations."""
+﻿"""Utilities for locating resource files and user-writable locations."""
 
 from __future__ import annotations
 
@@ -36,6 +36,9 @@ def user_data_dir() -> Path:
     """
     if is_frozen_app():
         return Path(sys.executable).resolve().parent / "userdata"
+
+    if "ANDROID_ARGUMENT" in os.environ:
+        return Path(os.environ.get("ANDROID_PRIVATE", Path.home())) / APP_NAME
 
     root = Path(os.getenv("LOCALAPPDATA") or Path.home())
     return root / APP_NAME

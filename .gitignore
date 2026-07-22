@@ -2,13 +2,28 @@
 __pycache__/
 *.py[cod]
 
-# Virtual environment
+# Virtual environment & local configs
 .venv/
+.env
 
-# Build artifacts
+# Build artifacts & compiled binaries (DO NOT COMMIT LARGE BINARIES)
 build/
 dist/
 release/
+bin/
+*.apk
+*.aab
+*.idsig
 
-# Generated PyInstaller spec
+# Buildozer temporary build files & logs
+.buildozer/
+buildozer_run.log
 InvestigationDiary.spec
+
+# Sensitive credentials & keystores (NEVER COMMIT KEYSTORES OR PASSWORDS)
+*.keystore
+*.jks
+*.pem
+*.key
+*.p12
+investigation_diary.keystore

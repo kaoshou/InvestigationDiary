@@ -1,4 +1,4 @@
-"""Battle system module using a durability-based flow."""
+﻿"""Battle system module using a durability-based flow."""
 
 from __future__ import annotations
 
@@ -16,17 +16,6 @@ DEFAULT_DURABILITY = 3
 DEFAULT_MAX_TURNS = 3
 
 
-@dataclass
-class EnemyState:
-    """Internal representation of an enemy in battle."""
-
-    name: str
-
-    @classmethod
-    def from_dict(cls, data: Dict) -> "EnemyState":
-        return cls(
-            name=data.get("name", "未知生物"),
-        )
 
 
 def _ensure_battle_state(player: Dict) -> Dict:
@@ -40,9 +29,11 @@ def start_battle(player: Dict, event: Dict) -> None:
     if not enemy_data:
         # Backwards compatibility with older story fields.
         enemy_data = {"name": event.get("enemy_name", "未知生物")}
+    else:
+        enemy_data = {"name": enemy_data.get("name", "未知生物")}
 
     state = _ensure_battle_state(player)
-    enemy = EnemyState.from_dict(enemy_data)
+    enemy = enemy_data
     durability = int(event.get("battle_durability", DEFAULT_DURABILITY))
     max_turns = int(event.get("battle_max_turns", DEFAULT_MAX_TURNS))
     durability = durability if durability > 0 else DEFAULT_DURABILITY
@@ -65,7 +56,7 @@ def start_battle(player: Dict, event: Dict) -> None:
         }
     )
 
-    text_log.add(f"戰鬥開始：{enemy.name}", category="system")
+    text_log.add(f"戰鬥開始：{enemy.get('name', '未知生物')}", category="system")
     text_log.add(f"可承受失敗次數：{state['durability']}", category="system")
 
 
@@ -82,9 +73,14 @@ def get_battle_state(player: Dict) -> Optional[Dict]:
     if not state:
         return None
     enemy = state.get("enemy")
-    if enemy and isinstance(enemy, dict):
-        # Convert legacy enemy dicts into EnemyState.
-        state["enemy"] = EnemyState.from_dict(enemy)
+    if isinstance(enemy, str) and enemy.startswith("EnemyState(name="):
+        # 處理因為之前錯誤序列化而被轉為字串的舊存檔
+        name_part = enemy[16:-1].strip("'\"")
+        state["enemy"] = {"name": name_part}
+    elif hasattr(enemy, "name"):
+        state["enemy"] = {"name": enemy.name}
+    elif not isinstance(enemy, dict):
+        state["enemy"] = {"name": "未知生物"}
     return state
 
 
@@ -108,7 +104,7 @@ def perform_battle_action(
             "enemy_damage": 0,
         }
 
-    enemy: EnemyState = state["enemy"]
+    enemy = state.get("enemy", {"name": "未知生物"})
     max_turns = max(state.get("max_turns", DEFAULT_MAX_TURNS), 1)
     durability = max(state.get("durability", DEFAULT_DURABILITY), 0)
     max_durability = max(state.get("max_durability", durability or DEFAULT_DURABILITY), 1)
@@ -128,7 +124,7 @@ def perform_battle_action(
         chance = float(config.get("attack_chance", DEFAULT_ATTACK_CHANCE))
         success = attempt >= max_turns or random.random() < chance
         if success:
-            messages.append(f"你擊倒了 {enemy.name}！")
+            messages.append(f"你擊倒了 {enemy.get('name', '未知生物')}！")
             battle_over = True
             victory = True
             sound_manager.play_sfx("monster_death")

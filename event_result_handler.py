@@ -8,6 +8,7 @@ messages via ``text_log``, and may set a forced event if the story needs
 to branch immediately.
 """
 
+from __future__ import annotations
 import text_log
 from typing import Dict, Any, Optional
 

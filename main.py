@@ -1,4 +1,4 @@
-"""Main entry point for the investigation diary game.
+﻿"""Main entry point for the investigation diary game.
 
 This script sets up pygame, loads assets, and enters the main event loop.
 It coordinates the user interface, the event system, and player state.
@@ -70,7 +70,6 @@ os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 # 在匯入仰賴字型的模組前先初始化 pygame
 pygame.init()
 pygame.font.init()
-sound_manager.init_sound()
 
 from ui_manager import (
     UI_AREAS,
@@ -86,6 +85,104 @@ from player_state import init_player_state
 from event_result_handler import handle_event_result
 from fate_system import post_event_update
 from battle_system import start_battle, is_battle_active, clear_battle_state
+
+# 視窗設定 (必須在載入任何圖片或建立 Animator 之前先呼叫 pygame.display.set_mode)
+SCREEN_WIDTH = 512
+SCREEN_HEIGHT = UI_HEIGHT
+WINDOW_FRAME_WIDTH_PADDING = 24
+WINDOW_FRAME_HEIGHT_PADDING = 72
+TOUCH_SCROLL_THRESHOLD = 22
+TOUCH_HIT_PADDING = 6
+
+
+def is_touch_platform() -> bool:
+    platform_name = sys.platform.lower()
+    return (
+        platform_name in {"android", "ios", "emscripten"}
+        or "ANDROID_ARGUMENT" in os.environ
+        or "ANDROID_STORAGE" in os.environ
+        or "PYGBAG" in os.environ
+    )
+
+
+TOUCH_PLATFORM = is_touch_platform()
+
+
+def get_initial_window_size() -> tuple[int, int]:
+    if TOUCH_PLATFORM:
+        desktop_sizes = pygame.display.get_desktop_sizes()
+        if desktop_sizes:
+            return desktop_sizes[0]
+        info = pygame.display.Info()
+        if info.current_w > 0 and info.current_h > 0:
+            return (info.current_w, info.current_h)
+        return (SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    desktop_sizes = pygame.display.get_desktop_sizes()
+    if not desktop_sizes:
+        return (SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    desktop_width, desktop_height = desktop_sizes[0]
+    safe_width = max(320, desktop_width - WINDOW_FRAME_WIDTH_PADDING)
+    safe_height = max(320, desktop_height - WINDOW_FRAME_HEIGHT_PADDING)
+    if SCREEN_WIDTH <= safe_width and SCREEN_HEIGHT <= safe_height:
+        return (SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    scale = min(safe_width / SCREEN_WIDTH, safe_height / SCREEN_HEIGHT)
+    scaled_width = max(320, int(SCREEN_WIDTH * scale))
+    scaled_height = max(320, int(SCREEN_HEIGHT * scale))
+    return (scaled_width, scaled_height)
+
+
+INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT = get_initial_window_size()
+MIN_WINDOW_SCALE = 0.6
+MIN_WINDOW_WIDTH = min(INITIAL_WINDOW_WIDTH, int(SCREEN_WIDTH * MIN_WINDOW_SCALE))
+MIN_WINDOW_HEIGHT = min(INITIAL_WINDOW_HEIGHT, int(SCREEN_HEIGHT * MIN_WINDOW_SCALE))
+NATIVE_SIZE_SNAP_TOLERANCE = 24
+MIN_WINDOW_RATIO_SCALE = min(
+    MIN_WINDOW_SCALE,
+    INITIAL_WINDOW_WIDTH / SCREEN_WIDTH,
+    INITIAL_WINDOW_HEIGHT / SCREEN_HEIGHT,
+)
+MIN_RATIO_WINDOW_WIDTH = int(round(SCREEN_WIDTH * MIN_WINDOW_RATIO_SCALE))
+MIN_RATIO_WINDOW_HEIGHT = int(round(SCREEN_HEIGHT * MIN_WINDOW_RATIO_SCALE))
+
+
+def clamp_window_size(width: int, height: int) -> tuple[int, int]:
+    hit_min_width = width < MIN_WINDOW_WIDTH
+    hit_min_height = height < MIN_WINDOW_HEIGHT
+
+    width = max(MIN_WINDOW_WIDTH, width)
+    height = max(MIN_WINDOW_HEIGHT, height)
+
+    # When the user shrinks to the minimum limit, snap to the game's aspect
+    # ratio so the smallest allowed window has no letterboxing.
+    if hit_min_width or hit_min_height:
+        width = MIN_RATIO_WINDOW_WIDTH
+        height = MIN_RATIO_WINDOW_HEIGHT
+
+    if (
+        abs(width - SCREEN_WIDTH) <= NATIVE_SIZE_SNAP_TOLERANCE
+        and abs(height - SCREEN_HEIGHT) <= NATIVE_SIZE_SNAP_TOLERANCE
+    ):
+        return (SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    return (width, height)
+
+
+display_flags = pygame.FULLSCREEN if TOUCH_PLATFORM else pygame.RESIZABLE
+screen = pygame.display.set_mode(
+    (INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT), display_flags
+)
+pygame.display.set_caption("菜鳥調查隊日記")
+icon = pygame.image.load(res_path("assets", "icon.png")).convert_alpha()
+pygame.display.set_icon(icon)
+game_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)).convert()
+SCREEN_RECT = game_surface.get_rect()
+clock = pygame.time.Clock()
+last_persist_ticks = 0
+
+sound_manager.init_sound()
 
 
 # 簡易的玩家動畫控制器
@@ -679,101 +776,7 @@ class EnemyAnimator:
                 self.frame_index = next_index
 
 
-# 視窗設定
-SCREEN_WIDTH = 512
-SCREEN_HEIGHT = UI_HEIGHT
-WINDOW_FRAME_WIDTH_PADDING = 24
-WINDOW_FRAME_HEIGHT_PADDING = 72
-TOUCH_SCROLL_THRESHOLD = 22
-TOUCH_HIT_PADDING = 6
-
-
-def is_touch_platform() -> bool:
-    platform_name = sys.platform.lower()
-    return (
-        platform_name in {"android", "ios", "emscripten"}
-        or "ANDROID_ARGUMENT" in os.environ
-        or "ANDROID_STORAGE" in os.environ
-        or "PYGBAG" in os.environ
-    )
-
-
-TOUCH_PLATFORM = is_touch_platform()
-
-
-def get_initial_window_size() -> tuple[int, int]:
-    if TOUCH_PLATFORM:
-        desktop_sizes = pygame.display.get_desktop_sizes()
-        if desktop_sizes:
-            return desktop_sizes[0]
-        info = pygame.display.Info()
-        if info.current_w > 0 and info.current_h > 0:
-            return (info.current_w, info.current_h)
-        return (SCREEN_WIDTH, SCREEN_HEIGHT)
-
-    desktop_sizes = pygame.display.get_desktop_sizes()
-    if not desktop_sizes:
-        return (SCREEN_WIDTH, SCREEN_HEIGHT)
-
-    desktop_width, desktop_height = desktop_sizes[0]
-    safe_width = max(320, desktop_width - WINDOW_FRAME_WIDTH_PADDING)
-    safe_height = max(320, desktop_height - WINDOW_FRAME_HEIGHT_PADDING)
-    if SCREEN_WIDTH <= safe_width and SCREEN_HEIGHT <= safe_height:
-        return (SCREEN_WIDTH, SCREEN_HEIGHT)
-
-    scale = min(safe_width / SCREEN_WIDTH, safe_height / SCREEN_HEIGHT)
-    scaled_width = max(320, int(SCREEN_WIDTH * scale))
-    scaled_height = max(320, int(SCREEN_HEIGHT * scale))
-    return (scaled_width, scaled_height)
-
-
-INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT = get_initial_window_size()
-MIN_WINDOW_SCALE = 0.6
-MIN_WINDOW_WIDTH = min(INITIAL_WINDOW_WIDTH, int(SCREEN_WIDTH * MIN_WINDOW_SCALE))
-MIN_WINDOW_HEIGHT = min(INITIAL_WINDOW_HEIGHT, int(SCREEN_HEIGHT * MIN_WINDOW_SCALE))
-NATIVE_SIZE_SNAP_TOLERANCE = 24
-MIN_WINDOW_RATIO_SCALE = min(
-    MIN_WINDOW_SCALE,
-    INITIAL_WINDOW_WIDTH / SCREEN_WIDTH,
-    INITIAL_WINDOW_HEIGHT / SCREEN_HEIGHT,
-)
-MIN_RATIO_WINDOW_WIDTH = int(round(SCREEN_WIDTH * MIN_WINDOW_RATIO_SCALE))
-MIN_RATIO_WINDOW_HEIGHT = int(round(SCREEN_HEIGHT * MIN_WINDOW_RATIO_SCALE))
-
-
-def clamp_window_size(width: int, height: int) -> tuple[int, int]:
-    hit_min_width = width < MIN_WINDOW_WIDTH
-    hit_min_height = height < MIN_WINDOW_HEIGHT
-
-    width = max(MIN_WINDOW_WIDTH, width)
-    height = max(MIN_WINDOW_HEIGHT, height)
-
-    # When the user shrinks to the minimum limit, snap to the game's aspect
-    # ratio so the smallest allowed window has no letterboxing.
-    if hit_min_width or hit_min_height:
-        width = MIN_RATIO_WINDOW_WIDTH
-        height = MIN_RATIO_WINDOW_HEIGHT
-
-    if (
-        abs(width - SCREEN_WIDTH) <= NATIVE_SIZE_SNAP_TOLERANCE
-        and abs(height - SCREEN_HEIGHT) <= NATIVE_SIZE_SNAP_TOLERANCE
-    ):
-        return (SCREEN_WIDTH, SCREEN_HEIGHT)
-
-    return (width, height)
-
-
-display_flags = pygame.FULLSCREEN if TOUCH_PLATFORM else pygame.RESIZABLE
-screen = pygame.display.set_mode(
-    (INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT), display_flags
-)
-pygame.display.set_caption("菜鳥調查隊日誌")
-icon = pygame.image.load(res_path("assets", "icon.png")).convert_alpha()
-pygame.display.set_icon(icon)
-game_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)).convert()
-SCREEN_RECT = game_surface.get_rect()
-clock = pygame.time.Clock()
-last_persist_ticks = 0
+# (視窗設定已移至檔案前段)
 
 sound_manager.play_bgm(BGM_START_MENU)
 
@@ -1121,7 +1124,7 @@ def draw_settings_popup(surface: pygame.Surface, include_navigation: bool):
         draw_button(surface, controls["to_menu"], "回到主畫面", color=(90, 70, 40))
         draw_button(surface, controls["quit"], "離開遊戲", color=(100, 40, 40))
 
-    draw_button(surface, controls["close"], "關閉")
+    draw_button(surface, controls["close"], "關閉選單")
 
 
 def handle_settings_click(pos, include_navigation: bool):
@@ -1131,7 +1134,7 @@ def handle_settings_click(pos, include_navigation: bool):
     modal = controls["modal"]
 
     if not modal.collidepoint(pos):
-        show_settings_popup = False
+        # 點擊在設定選單外，不關閉選單，但吞掉該點擊以防誤觸背景遊戲元素
         return True
 
     if control_contains(controls["bgm_down"], pos):
@@ -1637,6 +1640,7 @@ touch_scroll_start_pos: Optional[tuple[int, int]] = None
 touch_scroll_last_y: Optional[int] = None
 last_finger_down_pos: Optional[tuple[int, int]] = None
 last_finger_down_ticks = 0
+last_click_ticks = 0
 
 # 主要遊戲迴圈
 running = True
@@ -1668,30 +1672,85 @@ while running:
             else:
                 running = False
 
-        elif event.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
-            if event.type == pygame.MOUSEBUTTONDOWN:
+        elif event.type in (
+            pygame.MOUSEBUTTONUP,
+            pygame.FINGERDOWN,
+            pygame.FINGERMOTION,
+            pygame.FINGERUP,
+            pygame.MOUSEWHEEL,
+        ):
+            # Check for touch drag or normal clicks
+            trigger_click = False
+            click_pos = None
+
+            if event.type == pygame.MOUSEBUTTONUP:
+                if TOUCH_PLATFORM:
+                    # 觸控平台上直接忽略模擬的滑鼠放開事件，避免與 FINGERUP 重複觸發
+                    continue
                 if event.button != 1:
                     continue
                 game_pos = window_to_game_pos(event.pos)
                 if game_pos is None:
                     continue
-                if (
-                    getattr(event, "touch", False)
-                    and last_finger_down_pos is not None
-                    and pygame.time.get_ticks() - last_finger_down_ticks < 350
-                    and abs(game_pos[0] - last_finger_down_pos[0]) <= 4
-                    and abs(game_pos[1] - last_finger_down_pos[1]) <= 4
-                ):
+                if getattr(event, "touch", False):
+                    # Ignore synthesized touch event on mouse button up
                     continue
-            else:
+                current_ticks = pygame.time.get_ticks()
+                if current_ticks - last_click_ticks > 250:
+                    trigger_click = True
+                    click_pos = game_pos
+                    last_click_ticks = current_ticks
+
+            elif event.type == pygame.FINGERDOWN:
                 game_pos = window_to_game_pos(finger_to_window_pos(event))
-            if game_pos is None:
-                continue
-            if event.type == pygame.FINGERDOWN:
+                if game_pos is None:
+                    continue
                 touch_scroll_start_pos = game_pos
                 touch_scroll_last_y = game_pos[1]
                 last_finger_down_pos = game_pos
                 last_finger_down_ticks = pygame.time.get_ticks()
+                touch_dragged = False
+
+            elif event.type == pygame.FINGERMOTION:
+                game_pos = window_to_game_pos(finger_to_window_pos(event))
+                if game_pos is not None and touch_scroll_last_y is not None:
+                    start_pos = touch_scroll_start_pos or game_pos
+                    dy = game_pos[1] - touch_scroll_last_y
+                    if (
+                        abs(game_pos[0] - start_pos[0]) > 15
+                        or abs(game_pos[1] - start_pos[1]) > 15
+                    ):
+                        touch_dragged = True
+                    if abs(dy) >= TOUCH_SCROLL_THRESHOLD:
+                        direction = 1 if dy < 0 else -1
+                        if scroll_log_at(start_pos, direction):
+                            touch_scroll_last_y = game_pos[1]
+                continue
+
+            elif event.type == pygame.FINGERUP:
+                game_pos = window_to_game_pos(finger_to_window_pos(event))
+                if game_pos is not None and not touch_dragged:
+                    current_ticks = pygame.time.get_ticks()
+                    if current_ticks - last_click_ticks > 250:
+                        trigger_click = True
+                        click_pos = game_pos
+                        last_click_ticks = current_ticks
+                touch_scroll_start_pos = None
+                touch_scroll_last_y = None
+                touch_dragged = False
+                if not trigger_click:
+                    continue
+
+            elif event.type == pygame.MOUSEWHEEL:
+                game_mouse_pos = window_to_game_pos(pygame.mouse.get_pos())
+                if game_mouse_pos is not None:
+                    scroll_log_at(game_mouse_pos, event.y)
+                continue
+
+            if not trigger_click or click_pos is None:
+                continue
+            
+            game_pos = click_pos
 
             if show_settings_popup:
                 if handle_settings_click(game_pos, game_state == "main_screen"):
@@ -1876,33 +1935,12 @@ while running:
                                 )
                                 present_game_surface()
                             break
-        elif event.type == pygame.FINGERMOTION:
-            game_pos = window_to_game_pos(finger_to_window_pos(event))
-            if game_pos is None or touch_scroll_last_y is None:
-                continue
-            start_pos = touch_scroll_start_pos or game_pos
-            dy = game_pos[1] - touch_scroll_last_y
-            if abs(dy) >= TOUCH_SCROLL_THRESHOLD:
-                direction = 1 if dy < 0 else -1
-                if scroll_log_at(start_pos, direction):
-                    touch_scroll_last_y = game_pos[1]
-        elif event.type == pygame.FINGERUP:
-            touch_scroll_start_pos = None
-            touch_scroll_last_y = None
-        elif event.type == pygame.MOUSEWHEEL:
-            game_mouse_pos = window_to_game_pos(pygame.mouse.get_pos())
-            if game_mouse_pos is None:
-                continue
-            scroll_log_at(game_mouse_pos, event.y)
-
     dt_ms = clock.tick(TARGET_FPS)
     dt = dt_ms / 1000.0
     text_log.update_typewriter(dt)
     sound_manager.update(dt)
-    if not (TOUCH_PLATFORM and player_animator.state == "idle"):
-        player_animator.update(dt)
-    if not (TOUCH_PLATFORM and not enemy_animator.is_attacking()):
-        enemy_animator.update(dt)
+    player_animator.update(dt)
+    enemy_animator.update(dt)
     if enemy_attack_active and enemy_animator.attack_finished:
         enemy_attack_active = False
     try_apply_pending_result()
