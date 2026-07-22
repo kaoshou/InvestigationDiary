@@ -57,9 +57,13 @@ def build_command() -> List[str]:
             cmd.extend(["--add-data", f"{src}{data_sep}{folder}"])
 
     icon_ico = PROJECT_ROOT / "assets" / "icon.ico"
+    icon_icns = PROJECT_ROOT / "assets" / "icon.icns"
     icon_png = PROJECT_ROOT / "assets" / "icon.png"
     if os.name == "nt" and icon_ico.exists():
         cmd.extend(["--icon", str(icon_ico)])
+    elif sys.platform == "darwin":
+        if icon_icns.exists():
+            cmd.extend(["--icon", str(icon_icns)])
     elif icon_png.exists():
         cmd.extend(["--icon", str(icon_png)])
 
